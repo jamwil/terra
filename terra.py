@@ -2,7 +2,6 @@ import os
 import json
 from collections import namedtuple
 import click
-import numpy as np
 import requests
 import googlemaps
 
