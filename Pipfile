@@ -6,6 +6,10 @@ name = "pypi"
 [packages]
 click = "*"
 googlemaps = "*"
+requests = "*"
+"bs4" = "*"
+pandas = "*"
+lxml = "*"
 
 [dev-packages]
 jupyterlab = "*"

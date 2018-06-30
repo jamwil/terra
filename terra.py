@@ -1,8 +1,12 @@
 import os
 import json
+from random import choice
+from time import sleep
 from collections import namedtuple
 import click
+import pandas as pd
 import requests
+from bs4 import BeautifulSoup
 import googlemaps
 
 
@@ -42,7 +46,7 @@ def nad83(coordinates, reverse=False):
     payload = {
         'format': 'json',
         's_srs': 4326,
-        't_srs': 3402,
+        't_srs': 3403,
         'x': coordinates[1],
         'y': coordinates[0]
     }
@@ -75,11 +79,115 @@ def grid(northeast, southwest, density=500):
                 (x, y),
                 (x, y + density),
                 (x + density, y + density),
-                (x + density, y)
+                (x + density, y),
+                (x, y)
             ]
             master.append(polygon)
 
     return master
+
+
+class Spin:
+    """
+    Interface with land titles
+    """
+    def __init__(self, grid=False):
+        self.session = self.authenticate()
+        self.data = []
+
+        if grid:
+            self.pull(grid)
+            self.bundle()
+
+        return None
+
+
+    def authenticate(self):
+        """Login to Spin as a guest and return the requests session"""
+
+        # Choose a random user agent string from the most popular
+        agent_strings = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.157 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36'
+        ]
+        headers = {'User-Agent': choice(agent_strings)}
+
+        # Spin up a requests session
+        with requests.Session() as s:
+            s.headers.update(headers)
+
+            login_page = s.get('https://alta.registries.gov.ab.ca/SpinII/').content
+            soup = BeautifulSoup(login_page, 'html.parser')
+
+            login_payload = {
+                'uctrlFullHeader:ShutdownAlert1:Hidden1':'',
+                'uctrlFullHeader:ShutdownAlert1:Hidden2':'',
+                'JavascriptEnabled':1,
+                'uctrlLogon:txtLogonName':'',
+                'uctrlLogon:txtPassword':'',
+                'uctrlLogon:cmdLogonGuest.x':59,
+                'uctrlLogon:cmdLogonGuest.y':26
+            }
+            login_payload['__EVENTTARGET'] = soup.select_one('#__EVENTTARGET')['value']
+            login_payload['__EVENTARGUMENT'] = soup.select_one('#__EVENTARGUMENT')['value']
+            login_payload['__VIEWSTATE'] = soup.select_one('#__VIEWSTATE')['value']
+
+            sleep(5)
+            legal_notice_page = s.post('https://alta.registries.gov.ab.ca/SpinII/logon.aspx', \
+                    data=login_payload).content
+            soup = BeautifulSoup(legal_notice_page, 'html.parser')
+
+            login_payload['__VIEWSTATE'] = soup.select_one('#__VIEWSTATE')['value']
+            login_payload['cmdYES.x'] = 55
+            login_payload['cmdYES.y'] = 12
+            del login_payload['__EVENTARGUMENT']
+            del login_payload['__EVENTTARGET']
+
+            sleep(5)
+            confirm_guest_page = s.post('https://alta.registries.gov.ab.ca/SpinII/legalnotice.aspx', \
+                    data=login_payload).content
+            soup = BeautifulSoup(confirm_guest_page, 'html.parser')
+
+            if len(soup.find_all(text='You are logged on as a Guest.')) > 0:
+                return s
+
+
+    def pull(self, grid):
+        with self.session as s:
+            # Recursively handle either a grid or a single bound
+            if type(grid[0]) is list:
+                for bound in grid:
+                    self.pull(bound)
+            elif type(grid[0]) is tuple:
+                # Construct the web request from the coordinates
+                poly = ''.join(['{};{};'.format(point[0], point[1]) for point in grid])
+                payload = {
+                    'qt': 'spatial',
+                    'pts': poly,
+                    'rad': 0,
+                    'rights': 'B'
+                }
+                url = 'https://alta.registries.gov.ab.ca/SpinII/SearchTitlePrint.aspx'
+
+                sleep(5)
+                r = s.get(url, params=payload)
+                soup = BeautifulSoup(r.content, 'html.parser')
+
+                table = soup.find('table', class_='bodyText')
+                df = pd.read_html(str(table), index_col=0, header=0, parse_dates=False)[0]
+                df['Registration Date'] = pd.to_datetime(df['Registration Date'], format='%d/%m/%Y')
+                df['Change/Cancel Date'] = pd.to_datetime(df['Change/Cancel Date'], format='%d/%m/%Y')
+
+                self.data.append(df)
+
+
+    def bundle(self):
+        self.dataframe = self.data[0].append(self.data[1:])
+        self.dataframe = self.dataframe.drop_duplicates()
+        self.dataframe = self.dataframe.sort_values(by=['Registration Date'], ascending=False)
+        return self.dataframe
+
 
 
 @click.command()
