@@ -442,13 +442,14 @@ class Spatial:
 
 
 @click.command()
-@click.argument('communities', nargs=-1)
-def terra(communities):
+@click.argument('communities', nargs=1)
+@click.option('--date', prompt=True, help='Date to pull from')
+def terra(communities, date):
     """
     Entry point for CLI
     """
-    for community in communities:
-        pass
+    click.echo(communities, date)
+    
 
 if __name__ == '__main__':
     pass
