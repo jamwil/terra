@@ -14,6 +14,10 @@ import googlemaps
 
 class Geography:
     def __init__(self, locality):
+        """
+        Geocodes a bounding box around a given community or area. the 'geography' attribute
+        will hold the matrix of coordinates to pass to Spin.
+        """
         self.google = googlemaps.Client(key=os.environ['GOOGLE_API_KEY'])
 
         self.bounds = self.bound(locality)
@@ -99,7 +103,7 @@ class Geography:
 
 class Spin:
     """
-    Interface with land titles
+    Interface with land titles. Will return a 'dataframe' attribute with titles
     """
     def __init__(self, grid=False, pull_period=False):
         self.runtime = time()
@@ -116,7 +120,9 @@ class Spin:
 
 
     def authenticate(self):
-        """Login to Spin as a guest and return the requests session"""
+        """
+        Login to Spin as a guest and return the requests session
+        """
 
         # Choose a random user agent string from the most popular
         agent_strings = [
@@ -167,6 +173,10 @@ class Spin:
 
 
     def fetch(self, grid):
+        """
+        Performs the grid searching and builds a journal dataframe with the full list of
+        titles to filter and pull.
+        """
         with self.session as s:
             # Recursively handle either a grid or a single bound
             if type(grid[0]) is list:
@@ -197,6 +207,9 @@ class Spin:
 
 
     def bundle(self):
+        """
+        Bundles a list of DataFrames into one and sorts by registration date
+        """
         self.journal = self.data[0].append(self.data[1:])
         self.journal = self.journal.drop_duplicates()
         self.journal = self.journal.sort_values(by=['Registration Date'], ascending=False)
@@ -204,6 +217,10 @@ class Spin:
 
 
     def pull(self, period):
+        """
+        Takes the journal dataframe and coordinates the retrieval and parsing of individual
+        tiles.
+        """
         # Compile the regex expressions we'll use to parse the title text
         self.identity_regex = re.compile(r"(\d{4} \d{3} \d{3})\s{2,}(\S+)\s{2,}(\d{3} \d{3} \d{3} *\S*)")
         self.ats_regex = re.compile(r"ATS REFERENCE: (\S*)")
@@ -258,6 +275,9 @@ class Spin:
 
 
     def retrieve_title(self, index):
+        """
+        Called within pull() on  an individual title number
+        """
         with self.session as s:
             article_url = (
                 'https://alta.registries.gov.ab.ca/SpinII'
@@ -275,6 +295,9 @@ class Spin:
 
 
     def parse_title(self, pre):
+        """
+        Takes raw title information and parses it with regex to normalize the data.
+        """
         # Extract datapoints
         title_text = str(pre)
         title = {}
@@ -330,9 +353,7 @@ def terra(communities):
     Entry point for CLI
     """
     for community in communities:
-        geocode_result = bound(community)
-        ne, sw = nad83(geocode_result.northeast), nad83(geocode_result.southwest)
-        grid(ne, sw)
+        pass
 
 if __name__ == '__main__':
     pass
