@@ -9,20 +9,29 @@ import click
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+from PIL import Image
 import googlemaps
+import geopandas as gpd
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import Select
+from selenium.webdriver import ActionChains
+from shapely.geometry import Point
+
 
 
 class Geography:
-    def __init__(self, locality):
+    def __init__(self, locality=False):
         """
         Geocodes a bounding box around a given community or area. the 'geography' attribute
         will hold the matrix of coordinates to pass to Spin.
         """
         self.google = googlemaps.Client(key=os.environ['GOOGLE_API_KEY'])
 
-        self.bounds = self.bound(locality)
-        self.northeast, self.southwest = self.nad83(self.bounds.northeast), self.nad83(self.bounds.southwest)
-        self.geography = self.grid(self.northeast, self.southwest)
+        if locality:
+            self.bounds = self.bound(locality)
+            self.northeast, self.southwest = self.nad83(self.bounds.northeast), self.nad83(self.bounds.southwest)
+            self.geography = self.grid(self.northeast, self.southwest)
 
         return None
 
@@ -66,6 +75,7 @@ class Geography:
         }
         if reverse:
             payload['s_srs'], payload['t_srs'] = payload['t_srs'], payload['s_srs']
+            payload['x'], payload['y'] = payload['y'], payload['x']
 
         url = 'http://epsg.io/trans'
         r = requests.get(url, params=payload)
@@ -210,7 +220,8 @@ class Spin:
         """
         Bundles a list of DataFrames into one and sorts by registration date
         """
-        self.journal = self.data[0].append(self.data[1:])
+        if len(self.data) > 0:
+            self.journal = self.data[0].append(self.data[1:])
         self.journal = self.journal.drop_duplicates()
         self.journal = self.journal.sort_values(by=['Registration Date'], ascending=False)
         return self.journal
@@ -233,7 +244,7 @@ class Spin:
         df = df[df['Registration Date'] >= period]
 
         print(len(df))
-        df.to_pickle('{}.journal.pkl'.format(self.runtime))
+        df.to_pickle('run/{}.journal.pkl'.format(self.runtime))
 
         # Set up structure for target DataFrame
         self.dataframe = pd.DataFrame(
@@ -247,7 +258,8 @@ class Spin:
                 'registration_date',
                 'document_type',
                 'sworn_value',
-                'consideration'
+                'consideration',
+                'condo'
             ], index=df.index
         )
 
@@ -263,13 +275,15 @@ class Spin:
             self.dataframe.loc[index, 'document_type'] = payload['document_type']
             self.dataframe.loc[index, 'sworn_value'] = payload['value']
             self.dataframe.loc[index, 'consideration'] = payload['consideration']
+            self.dataframe.loc[index, 'condo'] = payload['condo']
 
         self.dataframe['linc'] = self.dataframe['linc'].astype(int)
         self.dataframe['registration_date'] = pd.to_datetime(self.dataframe['registration_date'])
         self.dataframe['sworn_value'] = self.dataframe['sworn_value'].astype(float)
         self.dataframe['consideration'] = self.dataframe['consideration'].astype(float)
+        self.dataframe['condo'] = self.dataframe['condo'].fillna(False).astype(bool)
 
-        self.dataframe.to_pickle('{}.dataframe.pkl'.format(self.runtime))
+        self.dataframe.to_pickle('run/{}.dataframe.pkl'.format(self.runtime))
 
         return self.dataframe
 
@@ -331,6 +345,11 @@ class Spin:
         title['value'] = self._try_int(payday_raw[46:62].strip())
         title['consideration'] = self._try_int(payday_raw[62:80].strip())
 
+        if "CONDOMINIUM" in title_text:
+            title['condo'] = True
+        else:
+            title['condo'] = False
+
         title['title_text'] = title_text.strip('<pre>').strip('</pre>').strip()
 
         return title
@@ -344,6 +363,82 @@ class Spin:
         except ValueError:
             value = None
         return value
+
+
+class Spatial:
+    """
+    Enhanced data sourcing which obtains coordinates for each transaction and a screenshot
+    site plan
+    """
+    def __init__(self, dataframe=False):
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--window-size=1200,800")
+
+        self.driver = webdriver.Chrome(chrome_options=chrome_options)
+
+        self.driver.get('https://alta.registries.gov.ab.ca/spinii/logon.aspx')
+        sleep(1)
+        self.driver.find_element_by_id('uctrlLogon_cmdLogonGuest').click()
+        sleep(1)
+        self.driver.find_element_by_id('cmdYES').click()
+        sleep(1)
+        self.driver.get('http://alta.registries.gov.ab.ca/SpinII/mapindex.aspx')
+
+        if len(dataframe) > 0:
+            geoseries = self.build_geoseries(dataframe)
+            self.geodataframe = gpd.GeoDataFrame(dataframe, geometry=geoseries)
+            self.close()
+
+        return None
+
+    def build_geoseries(self, dataframe):
+        """Runs map_property on a list of lincs and returns the geoseries"""
+        geo_list = []
+        for index, row in dataframe.iterrows():
+            geo_list.append(self.map_property(row['linc']))
+
+        geo_series = gpd.GeoSeries(Point(geo_list), index=dataframe.index)
+
+        return geo_series
+
+
+
+    def map_property(self, linc):
+        """Map search a linc"""
+        sleep(1)
+        linc = '{}'.format(linc).zfill(10)
+        self.driver.switch_to_frame('fOpts')
+        select_box = Select(self.driver.find_element_by_id('Finds_lstFindTypes'))
+        select_box.select_by_visible_text('Linc Number')
+        linc_box = self.driver.find_element_by_id('Finds_ctlLincNumber_txtLincNumber')
+        linc_box.send_keys(linc)
+        self.driver.find_element_by_id('Finds_cmdSubmit').click()
+        sleep(5)
+        self.driver.switch_to_default_content()
+        hover_target = self.driver.find_element_by_id('map')
+        map_location = hover_target.location
+        map_size = hover_target.size
+        filename = 'run/sites/{}.png'.format(linc)
+        self.driver.save_screenshot(filename)
+        x = map_location['x'] + 50
+        y = map_location['y']
+        width = map_location['x'] + map_size['width'] - 50
+        height = map_location['y'] + map_size['height']
+        im = Image.open(filename)
+        im = im.crop((int(x), int(y), int(width), int(height)))
+        im.save(filename)
+        ActionChains(self.driver).move_to_element(hover_target).drag_and_drop_by_offset(hover_target, 1, 1).perform()
+        nad83_raw = self.driver.find_element_by_id('coordinateOutput').text
+        nad83 = tuple(re.findall(r"[0-9\.]+", nad83_raw))
+        gps = Geography().nad83(nad83, reverse=True)
+
+        return gps
+
+
+    def close(self):
+        self.driver.quit()
+        return None
 
 
 @click.command()

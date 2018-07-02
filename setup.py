@@ -20,7 +20,14 @@ setup(
         'click',
         'numpy',
         'requests',
-        'googlemaps'
+        'googlemaps',
+        'beautifulsoup4',
+        'pandas',
+        'geopandas',
+        'lxml',
+        'selenium',
+        'pillow',
+        'boto3'
     ],
     entry_points="""
         [console_scripts]
