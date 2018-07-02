@@ -10,6 +10,9 @@ requests = "*"
 "bs4" = "*"
 pandas = "*"
 lxml = "*"
+selenium = "*"
+pillow = "*"
+geopandas = "*"
 
 [dev-packages]
 jupyterlab = "*"
