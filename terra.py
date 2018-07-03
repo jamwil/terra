@@ -452,7 +452,7 @@ def terra(community, date, condo):
     """
     geo = Geography(community)
     click.confirm('There are {} grids in this search area. Continue?'.format(len(geo.geography)), abort=True)
-    spin = Spin(geo.geography[3:7], date)
+    spin = Spin(geo.geography, date)
     if condo:
         click.confirm('There are {} records to retrieve. Continue?'.format(len(spin.dataframe)), abort=True)
         data = Spatial(spin.dataframe)
