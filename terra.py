@@ -243,7 +243,6 @@ class Spin:
         df = self.journal
         df = df[df['Registration Date'] >= period]
 
-        print(len(df))
         df.to_pickle('run/{}.journal.pkl'.format(self.runtime))
 
         # Set up structure for target DataFrame
@@ -398,7 +397,7 @@ class Spatial:
         for index, row in dataframe.iterrows():
             geo_list.append(self.map_property(row['linc']))
 
-        geo_series = gpd.GeoSeries(Point(geo_list), index=dataframe.index)
+        geo_series = gpd.GeoSeries([Point(mark) for mark in geo_list], index=dataframe.index)
 
         return geo_series
 
@@ -412,6 +411,7 @@ class Spatial:
         select_box = Select(self.driver.find_element_by_id('Finds_lstFindTypes'))
         select_box.select_by_visible_text('Linc Number')
         linc_box = self.driver.find_element_by_id('Finds_ctlLincNumber_txtLincNumber')
+        linc_box.clear()
         linc_box.send_keys(linc)
         self.driver.find_element_by_id('Finds_cmdSubmit').click()
         sleep(5)
@@ -432,8 +432,9 @@ class Spatial:
         nad83_raw = self.driver.find_element_by_id('coordinateOutput').text
         nad83 = tuple(re.findall(r"[0-9\.]+", nad83_raw))
         gps = Geography().nad83(nad83, reverse=True)
+        gpsr = (gps[1], gps[0])
 
-        return gps
+        return gpsr
 
 
     def close(self):
@@ -442,14 +443,26 @@ class Spatial:
 
 
 @click.command()
-@click.argument('communities', nargs=1)
+@click.argument('community', nargs=1)
 @click.option('--date', prompt=True, help='Date to pull from')
-def terra(communities, date):
+@click.option('--condo/--no-condo', default=False, help='Pass condos to Spatial')
+def terra(community, date, condo):
     """
     Entry point for CLI
     """
-    click.echo(communities, date)
-    
+    geo = Geography(community)
+    click.confirm('There are {} grids in this search area. Continue?'.format(len(geo.geography)), abort=True)
+    spin = Spin(geo.geography[3:7], date)
+    if condo:
+        click.confirm('There are {} records to retrieve. Continue?'.format(len(spin.dataframe)), abort=True)
+        data = Spatial(spin.dataframe)
+    else:
+        click.confirm('There are {} records to retrieve. Continue?'.format(len(spin.dataframe[spin.dataframe['condo'] == False])), abort=True)
+        data = Spatial(spin.dataframe[spin.dataframe['condo'] == False])
+    data.geodataframe['registration_date'] = data.geodataframe['registration_date'].astype(str)
+    data.geodataframe['condo'] = data.geodataframe['condo'].astype(int)
+    data.geodataframe.to_file('run/{}.geojson'.format(community), driver='GeoJSON')
+
 
 if __name__ == '__main__':
     pass

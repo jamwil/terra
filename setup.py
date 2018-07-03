@@ -21,13 +21,14 @@ setup(
         'numpy',
         'requests',
         'googlemaps',
-        'beautifulsoup4',
+        'bs4',
         'pandas',
         'geopandas',
         'lxml',
         'selenium',
         'pillow',
-        'boto3'
+        'boto3',
+        'html5lib'
     ],
     entry_points="""
         [console_scripts]
