@@ -2,6 +2,7 @@
 build/
 dist/
 run/
+data/
 *.egg-info/
 *.egg
 *.py[cod]

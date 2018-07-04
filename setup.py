@@ -28,7 +28,7 @@ setup(
         'selenium',
         'pillow',
         'boto3',
-        'html5lib'
+        'html5lib',
     ],
     entry_points="""
         [console_scripts]

@@ -3,6 +3,7 @@ import json
 import re
 from random import choice
 from time import sleep, time
+from datetime import datetime
 from collections import namedtuple
 import pickle
 import click
@@ -115,16 +116,21 @@ class Spin:
     """
     Interface with land titles. Will return a 'dataframe' attribute with titles
     """
-    def __init__(self, grid=False, pull_period=False):
+    def __init__(self, grid=False, pull_period=False, journal=False):
         self.runtime = time()
         self.session = self.authenticate()
         self.data = []
 
-        if grid:
-            self.fetch(grid)
-            self.bundle()
+        if journal:
+            self.journal = pd.read_pickle(journal)
             if pull_period:
                 self.pull(pull_period)
+        else:
+            if grid:
+                self.fetch(grid)
+                self.bundle()
+                if pull_period:
+                    self.pull(pull_period)
 
         return None
 
@@ -162,7 +168,7 @@ class Spin:
             login_payload['__EVENTARGUMENT'] = soup.select_one('#__EVENTARGUMENT')['value']
             login_payload['__VIEWSTATE'] = soup.select_one('#__VIEWSTATE')['value']
 
-            sleep(3)
+            sleep(2)
             legal_notice_page = s.post('https://alta.registries.gov.ab.ca/SpinII/logon.aspx', \
                     data=login_payload).content
             soup = BeautifulSoup(legal_notice_page, 'html.parser')
@@ -173,7 +179,7 @@ class Spin:
             del login_payload['__EVENTARGUMENT']
             del login_payload['__EVENTTARGET']
 
-            sleep(3)
+            sleep(2)
             confirm_guest_page = s.post('https://alta.registries.gov.ab.ca/SpinII/legalnotice.aspx', \
                     data=login_payload).content
             soup = BeautifulSoup(confirm_guest_page, 'html.parser')
@@ -190,8 +196,9 @@ class Spin:
         with self.session as s:
             # Recursively handle either a grid or a single bound
             if type(grid[0]) is list:
-                for bound in grid:
-                    self.fetch(bound)
+                with click.progressbar(grid, label='Fetching journal') as g:
+                    for bound in g:
+                        self.fetch(bound)
             elif type(grid[0]) is tuple:
                 # Construct the web request from the coordinates
                 poly = ''.join(['{};{};'.format(point[0], point[1]) for point in grid])
@@ -203,17 +210,20 @@ class Spin:
                 }
                 url = 'https://alta.registries.gov.ab.ca/SpinII/SearchTitlePrint.aspx'
 
-                sleep(10)
+                sleep(3)
                 r = s.get(url, params=payload)
                 soup = BeautifulSoup(r.content, 'html.parser')
 
                 # Extract the table and load into a DataFrame
-                table = soup.find('table', class_='bodyText')
-                df = pd.read_html(str(table), index_col=0, header=0, parse_dates=False)[0]
-                df['Registration Date'] = pd.to_datetime(df['Registration Date'], format='%d/%m/%Y')
-                df['Change/Cancel Date'] = pd.to_datetime(df['Change/Cancel Date'], format='%d/%m/%Y')
+                try:
+                    table = soup.find('table', class_='bodyText')
+                    df = pd.read_html(str(table), index_col=0, header=0, parse_dates=False)[0]
+                    df['Registration Date'] = pd.to_datetime(df['Registration Date'], format='%d/%m/%Y')
+                    df['Change/Cancel Date'] = pd.to_datetime(df['Change/Cancel Date'], format='%d/%m/%Y')
 
-                self.data.append(df)
+                    self.data.append(df)
+                except:
+                    pass
 
 
     def bundle(self):
@@ -245,6 +255,8 @@ class Spin:
 
         df.to_pickle('run/{}.journal.pkl'.format(self.runtime))
 
+        click.echo('Journal constructed and saved with timestamp {}'.format(self.runtime))
+
         # Set up structure for target DataFrame
         self.dataframe = pd.DataFrame(
             columns=[
@@ -262,19 +274,20 @@ class Spin:
             ], index=df.index
         )
 
-        for index, row in df.iterrows():
-            payload = self.retrieve_title(index)
-            self.dataframe.loc[index, 'linc'] = payload['linc']
-            self.dataframe.loc[index, 'short_legal'] = payload['short_legal']
-            self.dataframe.loc[index, 'title_number'] = payload['title_number']
-            self.dataframe.loc[index, 'ats_reference'] = payload['ats_reference']
-            self.dataframe.loc[index, 'municipality'] = payload['municipality']
-            self.dataframe.loc[index, 'registration'] = payload['registration']
-            self.dataframe.loc[index, 'registration_date'] = payload['date']
-            self.dataframe.loc[index, 'document_type'] = payload['document_type']
-            self.dataframe.loc[index, 'sworn_value'] = payload['value']
-            self.dataframe.loc[index, 'consideration'] = payload['consideration']
-            self.dataframe.loc[index, 'condo'] = payload['condo']
+        with click.progressbar(df.iterrows(), label='Pulling basic title data', length=len(df)) as d:
+            for index, row in d:
+                payload = self.retrieve_title(index)
+                self.dataframe.loc[index, 'linc'] = payload['linc']
+                self.dataframe.loc[index, 'short_legal'] = payload['short_legal']
+                self.dataframe.loc[index, 'title_number'] = payload['title_number']
+                self.dataframe.loc[index, 'ats_reference'] = payload['ats_reference']
+                self.dataframe.loc[index, 'municipality'] = payload['municipality']
+                self.dataframe.loc[index, 'registration'] = payload['registration']
+                self.dataframe.loc[index, 'registration_date'] = payload['date']
+                self.dataframe.loc[index, 'document_type'] = payload['document_type']
+                self.dataframe.loc[index, 'sworn_value'] = payload['value']
+                self.dataframe.loc[index, 'consideration'] = payload['consideration']
+                self.dataframe.loc[index, 'condo'] = payload['condo']
 
         self.dataframe['linc'] = self.dataframe['linc'].astype(int)
         self.dataframe['registration_date'] = pd.to_datetime(self.dataframe['registration_date'])
@@ -283,6 +296,7 @@ class Spin:
         self.dataframe['condo'] = self.dataframe['condo'].fillna(False).astype(bool)
 
         self.dataframe.to_pickle('run/{}.dataframe.pkl'.format(self.runtime))
+        click.echo('Dataframe constructed and saved with timestamp {}'.format(self.runtime))
 
         return self.dataframe
 
@@ -299,11 +313,13 @@ class Spin:
                 '&ArticleType=CurrentTitle'
                 '&ArticleID=%s&NextPage=' % index
             )
-            sleep(3)
+            sleep(2)
             article = s.get(article_url)
             soup = BeautifulSoup(article.content, 'html.parser')
             if soup.pre:
                 payload = self.parse_title(soup.pre)
+                with open('data/titles/{}.txt'.format(index), "w") as f:
+                    f.write(payload['title_text'])
                 return payload
 
 
@@ -370,6 +386,7 @@ class Spatial:
     site plan
     """
     def __init__(self, dataframe=False):
+        self.runtime = time()
         chrome_options = Options()
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--window-size=1200,800")
@@ -387,6 +404,8 @@ class Spatial:
         if len(dataframe) > 0:
             geoseries = self.build_geoseries(dataframe)
             self.geodataframe = gpd.GeoDataFrame(dataframe, geometry=geoseries)
+            self.geodataframe.to_pickle('run/{}.geodataframe.pkl'.format(self.runtime))
+            click.echo('Geodataframe constructed and saved with timestamp {}'.format(self.runtime))
             self.close()
 
         return None
@@ -394,8 +413,9 @@ class Spatial:
     def build_geoseries(self, dataframe):
         """Runs map_property on a list of lincs and returns the geoseries"""
         geo_list = []
-        for index, row in dataframe.iterrows():
-            geo_list.append(self.map_property(row['linc']))
+        with click.progressbar(dataframe.iterrows(), label='Pulling site plans and geographic title data', length=len(dataframe)) as d:
+            for index, row in d:
+                geo_list.append(self.map_property(row['linc']))
 
         geo_series = gpd.GeoSeries([Point(mark) for mark in geo_list], index=dataframe.index)
 
@@ -419,7 +439,7 @@ class Spatial:
         hover_target = self.driver.find_element_by_id('map')
         map_location = hover_target.location
         map_size = hover_target.size
-        filename = 'run/sites/{}.png'.format(linc)
+        filename = 'data/sites/{}.png'.format(linc)
         self.driver.save_screenshot(filename)
         x = map_location['x'] + 50
         y = map_location['y']
@@ -446,22 +466,43 @@ class Spatial:
 @click.argument('community', nargs=1)
 @click.option('--date', prompt=True, help='Date to pull from')
 @click.option('--condo/--no-condo', default=False, help='Pass condos to Spatial')
-def terra(community, date, condo):
+@click.option('--journal', default=False, help='Use existing journal pickle')
+@click.option('--dataframe', default=False, help='Use existing dataframe pickle')
+@click.option('--save', default=False, help='Path to save GeoJSON')
+@click.option('--force/--no-force', default=False, help='Silence all confirmations')
+def terra(community, date, condo, journal, dataframe, save, force):
     """
     Entry point for CLI
     """
-    geo = Geography(community)
-    click.confirm('There are {} grids in this search area. Continue?'.format(len(geo.geography)), abort=True)
-    spin = Spin(geo.geography, date)
+    if not dataframe:
+        if not journal:
+            geo = Geography(community)
+            if not force: click.confirm('There are {} grids in {}. Continue?'.format(len(geo.geography), geo.bounds.locality), abort=True)
+
+            date_object = datetime.strptime(date, '%Y-%m-%d')
+            if not force: click.confirm('Journal all transactions beginning {}?'.format(date_object.strftime('%B %d, %Y')), abort=True)
+
+            spin = Spin(geo.geography, date)
+        else:
+            spin = Spin(pull_period=date, journal=journal)
+    else:
+        spin = Spin()
+        spin.dataframe = pd.read_pickle(dataframe)
+
+
     if condo:
-        click.confirm('There are {} records to retrieve. Continue?'.format(len(spin.dataframe)), abort=True)
+        if not force: click.confirm('There are {} records to retrieve. Continue?'.format(len(spin.dataframe)), abort=True)
         data = Spatial(spin.dataframe)
     else:
-        click.confirm('There are {} records to retrieve. Continue?'.format(len(spin.dataframe[spin.dataframe['condo'] == False])), abort=True)
+        if not force: click.confirm('There are {} records to retrieve. Continue?'.format(len(spin.dataframe[spin.dataframe['condo'] == False])), abort=True)
         data = Spatial(spin.dataframe[spin.dataframe['condo'] == False])
+
     data.geodataframe['registration_date'] = data.geodataframe['registration_date'].astype(str)
     data.geodataframe['condo'] = data.geodataframe['condo'].astype(int)
-    data.geodataframe.to_file('run/{}.geojson'.format(community), driver='GeoJSON')
+
+    if save:
+        data.geodataframe.to_file('data/geojson/{}'.format(save), driver='GeoJSON')
+        click.echo('{} saved to data folder'.format(save))
 
 
 if __name__ == '__main__':
