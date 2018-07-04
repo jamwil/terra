@@ -388,6 +388,7 @@ class Spatial:
     def __init__(self, dataframe=False):
         self.runtime = time()
         chrome_options = Options()
+        chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--window-size=1200,800")
 
