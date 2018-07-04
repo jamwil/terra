@@ -27,7 +27,6 @@ setup(
         'lxml',
         'selenium',
         'pillow',
-        'boto3',
         'html5lib',
     ],
     entry_points="""
