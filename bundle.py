@@ -21,6 +21,10 @@ def main(geojson_list, s3):
                                                             for f in j['features']]
 
                 for title, site in titles:
+                    try:
+                        a, b = title.split('+')
+                        b = str(b).zfill(3)
+                        title = ''.join([a, b])
                     title_file = title.replace(' ', '') + '.txt'
                     site_file = str(site).zfill(10) + '.png'
 
