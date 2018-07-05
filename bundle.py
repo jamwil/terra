@@ -24,8 +24,10 @@ def main(geojson_list, s3):
                     try:
                         a, b = title.split('+')
                         b = str(b).zfill(3)
-                        title = ''.join([a, b])
-                    title_file = title.replace(' ', '') + '.txt'
+                        title = "".join([a, b])
+                    except:
+                        pass
+                    title_file = title.replace(" ", "") + '.txt'
                     site_file = str(site).zfill(10) + '.png'
 
                     zip.write('data/titles/{}'.format(title_file))

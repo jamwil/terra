@@ -5,6 +5,7 @@ name = "pypi"
 
 [packages]
 terra = {editable = true, path = "."}
+awscli = "*"
 
 [dev-packages]
 awscli = "*"
