@@ -15,7 +15,7 @@ setup(
     url='https://github.com/jamwil/terra',
     author='James Williams',
     author_email='jamwil@gmail.com',
-    py_modules=["terra"],
+    py_modules=["terra","bundle"],
     install_requires=[
         'click',
         'numpy',
@@ -28,9 +28,11 @@ setup(
         'selenium',
         'pillow',
         'html5lib',
+        'boto3'
     ],
     entry_points="""
         [console_scripts]
         terra=terra:terra
+        bundle=bundle:main
     """
 )

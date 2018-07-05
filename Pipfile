@@ -7,6 +7,7 @@ name = "pypi"
 terra = {editable = true, path = "."}
 
 [dev-packages]
+awscli = "*"
 
 [requires]
 python_version = "3.6"
