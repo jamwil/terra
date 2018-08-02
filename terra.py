@@ -232,6 +232,7 @@ class Spin:
         """
         if len(self.data) > 0:
             self.journal = self.data[0].append(self.data[1:])
+        self.journal = self.journal[self.journal['Rights'] != 'Mineral']
         self.journal = self.journal[~self.journal.index.duplicated(keep='first')]
         self.journal = self.journal.sort_values(by=['Registration Date'], ascending=False)
         return self.journal
@@ -435,7 +436,7 @@ class Spatial:
         linc_box.clear()
         linc_box.send_keys(linc)
         self.driver.find_element_by_id('Finds_cmdSubmit').click()
-        sleep(5)
+        sleep(8)
         self.driver.switch_to_default_content()
         hover_target = self.driver.find_element_by_id('map')
         map_location = hover_target.location
