@@ -388,6 +388,7 @@ class Spatial:
     """
     def __init__(self, dataframe=False):
         self.runtime = time()
+        self.spatial_count = 0
         chrome_options = Options()
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--headless")
@@ -436,7 +437,9 @@ class Spatial:
         linc_box.clear()
         linc_box.send_keys(linc)
         self.driver.find_element_by_id('Finds_cmdSubmit').click()
-        sleep(8)
+        if self.spatial_count == 0:
+                sleep(8)
+        sleep(4)
         self.driver.switch_to_default_content()
         hover_target = self.driver.find_element_by_id('map')
         map_location = hover_target.location
@@ -455,7 +458,7 @@ class Spatial:
         nad83 = tuple(re.findall(r"[0-9\.]+", nad83_raw))
         gps = Geography().nad83(nad83, reverse=True)
         gpsr = (gps[1], gps[0])
-
+        self.spatial_count += 1
         return gpsr
 
 
