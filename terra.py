@@ -277,18 +277,21 @@ class Spin:
 
         with click.progressbar(df.iterrows(), label='Pulling basic title data', length=len(df)) as d:
             for index, row in d:
-                payload = self.retrieve_title(index)
-                self.dataframe.loc[index, 'linc'] = payload['linc']
-                self.dataframe.loc[index, 'short_legal'] = payload['short_legal']
-                self.dataframe.loc[index, 'title_number'] = payload['title_number']
-                self.dataframe.loc[index, 'ats_reference'] = payload['ats_reference']
-                self.dataframe.loc[index, 'municipality'] = payload['municipality']
-                self.dataframe.loc[index, 'registration'] = payload['registration']
-                self.dataframe.loc[index, 'registration_date'] = payload['date']
-                self.dataframe.loc[index, 'document_type'] = payload['document_type']
-                self.dataframe.loc[index, 'sworn_value'] = payload['value']
-                self.dataframe.loc[index, 'consideration'] = payload['consideration']
-                self.dataframe.loc[index, 'condo'] = payload['condo']
+                try:
+                    payload = self.retrieve_title(index)
+                    self.dataframe.loc[index, 'linc'] = payload['linc']
+                    self.dataframe.loc[index, 'short_legal'] = payload['short_legal']
+                    self.dataframe.loc[index, 'title_number'] = payload['title_number']
+                    self.dataframe.loc[index, 'ats_reference'] = payload['ats_reference']
+                    self.dataframe.loc[index, 'municipality'] = payload['municipality']
+                    self.dataframe.loc[index, 'registration'] = payload['registration']
+                    self.dataframe.loc[index, 'registration_date'] = payload['date']
+                    self.dataframe.loc[index, 'document_type'] = payload['document_type']
+                    self.dataframe.loc[index, 'sworn_value'] = payload['value']
+                    self.dataframe.loc[index, 'consideration'] = payload['consideration']
+                    self.dataframe.loc[index, 'condo'] = payload['condo']
+                except TypeError:
+                    pass
 
         self.dataframe['linc'] = self.dataframe['linc'].astype(int)
         self.dataframe['registration_date'] = pd.to_datetime(self.dataframe['registration_date'])
@@ -441,7 +444,11 @@ class Spatial:
                 sleep(8)
         sleep(4)
         self.driver.switch_to_default_content()
+        if self.spatial_count == 0:
+            sleep(5)
         hover_target = self.driver.find_element_by_id('map')
+        if self.spatial_count == 0:
+            sleep(5)
         map_location = hover_target.location
         map_size = hover_target.size
         filename = 'data/sites/{}.png'.format(linc)
@@ -453,7 +460,11 @@ class Spatial:
         im = Image.open(filename)
         im = im.crop((int(x), int(y), int(width), int(height)))
         im.save(filename)
+        if self.spatial_count == 0:
+            sleep(5)
         ActionChains(self.driver).move_to_element(hover_target).drag_and_drop_by_offset(hover_target, 1, 1).perform()
+        if self.spatial_count == 0:
+            sleep(5)
         nad83_raw = self.driver.find_element_by_id('coordinateOutput').text
         nad83 = tuple(re.findall(r"[0-9\.]+", nad83_raw))
         gps = Geography().nad83(nad83, reverse=True)
