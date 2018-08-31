@@ -467,7 +467,7 @@ class Spatial:
         if self.spatial_count == 0:
             sleep(5)
         nad83_raw = self.driver.find_element_by_id('coordinateOutput').text
-        nad83 = tuple(re.findall(r"[0-9\.]+", nad83_raw))
+        nad83 = tuple(re.findall(r"[0-9\.\-]+", nad83_raw))
         gps = Geography().nad83(nad83, reverse=True)
         gpsr = (gps[1], gps[0])
         self.spatial_count += 1
