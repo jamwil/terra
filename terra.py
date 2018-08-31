@@ -232,6 +232,7 @@ class Spin:
         """
         if len(self.data) > 0:
             self.journal = self.data[0].append(self.data[1:])
+        self.journal = self.journal[self.journal['Type'] == 'Current Title']
         self.journal = self.journal[self.journal['Rights'] != 'Mineral']
         self.journal = self.journal[~self.journal.index.duplicated(keep='first')]
         self.journal = self.journal.sort_values(by=['Registration Date'], ascending=False)
