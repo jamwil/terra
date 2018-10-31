@@ -51,7 +51,7 @@ class Geography:
             ll, rl = left.split(','), right.split(',')
             points_ne = [float(item) for item in ll]
             points_sw = [float(item) for item in rl]
-            viewpoint = dict()
+            viewport = dict()
             viewport['northeast']['lat'] = points_ne[0]
             viewport['northeast']['lng'] = points_ne[1]
             viewport['southwest']['lat'] = points_sw[0]
