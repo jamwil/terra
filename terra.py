@@ -46,11 +46,16 @@ class Geography:
             'administrative_area': province,
             'country': country
         }
-        if locality is type(tuple):
-            viewport['northeast']['lat'] = locality[0][0]
-            viewport['northeast']['lng'] = locality[0][1]
-            viewport['southwest']['lat'] = locality[1][0]
-            viewport['southwest']['lng'] = locality[1][1]
+        if ';' in locality:
+            left, right = locality.split(';')
+            ll, rl = left.split(','), right.split(',')
+            points_ne = [float(item) for item in ll]
+            points_sw = [float(item) for item in rl]
+            viewpoint = dict()
+            viewport['northeast']['lat'] = points_ne[0]
+            viewport['northeast']['lng'] = points_ne[1]
+            viewport['southwest']['lat'] = points_sw[0]
+            viewport['southwest']['lng'] = points_sw[1]
             formatted_address = 'Manual Bounds'
         else:
             result = self.google.geocode(locality, components=filters)[0]
