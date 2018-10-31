@@ -46,16 +46,16 @@ class Geography:
             'administrative_area': province,
             'country': country
         }
-		if locality is type(tuple):
-			viewport['northeast']['lat'] = locality[0][0]
-			viewport['northeast']['lng'] = locality[0][1]
-			viewport['southwest']['lat'] = locality[1][0]
-			viewport['southwest']['lng'] = locality[1][1]
-			formatted_address = 'Manual Bounds'
-		else:
-        	result = self.google.geocode(locality, components=filters)[0]
-        	formatted_address = result['formatted_address']
-        	viewport = result['geometry']['viewport']
+        if locality is type(tuple):
+            viewport['northeast']['lat'] = locality[0][0]
+            viewport['northeast']['lng'] = locality[0][1]
+            viewport['southwest']['lat'] = locality[1][0]
+            viewport['southwest']['lng'] = locality[1][1]
+            formatted_address = 'Manual Bounds'
+        else:
+            result = self.google.geocode(locality, components=filters)[0]
+            formatted_address = result['formatted_address']
+            viewport = result['geometry']['viewport']
 
         northeast = (viewport['northeast']['lat'], viewport['northeast']['lng'])
         southwest = (viewport['southwest']['lat'], viewport['southwest']['lng'])
