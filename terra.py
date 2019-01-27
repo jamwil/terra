@@ -17,6 +17,9 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver import ActionChains
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from shapely.geometry import Point
 
 
@@ -462,6 +465,9 @@ class Spatial:
         self.driver.switch_to_default_content()
         if self.spatial_count == 0:
             sleep(5)
+        e = WebDriverWait(self.driver, 60).until(
+                EC.presence_of_element_located((By.ID, 'map'))
+        )
         hover_target = self.driver.find_element_by_id('map')
         if self.spatial_count == 0:
             sleep(5)
