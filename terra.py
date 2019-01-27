@@ -93,7 +93,10 @@ class Geography:
 
         url = 'http://epsg.io/trans'
         r = requests.get(url, params=payload)
-        data = r.json()
+        try:
+            data = r.json()
+        except ValueError:
+            data = dict(y='0', x='0')
 
         value = (float(data['y']), float(data['x']))
         return value
@@ -307,7 +310,6 @@ class Spin:
                 except TypeError:
                     pass
 
-        self.dataframe['linc'] = self.dataframe['linc'].astype(int)
         self.dataframe['registration_date'] = pd.to_datetime(self.dataframe['registration_date'])
         self.dataframe['sworn_value'] = self.dataframe['sworn_value'].astype(float)
         self.dataframe['consideration'] = self.dataframe['consideration'].astype(float)
