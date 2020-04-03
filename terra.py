@@ -105,7 +105,7 @@ class Geography:
         return value
 
 
-    def grid(self, northeast, southwest, density=500):
+    def grid(self, northeast, southwest, density=200):
         """
         Break a bounding box into a mesh for some grid searchin'
         """
@@ -464,7 +464,13 @@ class Spatial:
         sleep(4)
         self.driver.switch_to_default_content()
         if self.spatial_count == 0:
-            sleep(5)
+            try:
+                e = WebDriverWait(self.driver, 10).until(
+                        EC.presence_of_element_located((By.ID, 'map'))
+                )
+            except:
+                self.driver.refresh()
+                self.driver.switch_to_default_content()
         e = WebDriverWait(self.driver, 60).until(
                 EC.presence_of_element_located((By.ID, 'map'))
         )
